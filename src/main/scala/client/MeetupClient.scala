@@ -41,10 +41,10 @@ object MeetupClient extends App {
   
   
   def createContext(): StreamingContext={
-    val newSSC=new StreamingContext(conf, Seconds(1))
-    val inputStream = newSSC.receiverStream(new MeetupReceiver)
+    val newSsc=new StreamingContext(conf, Seconds(1))
+    val inputStream = newSsc.receiverStream(new MeetupReceiver)
     mostActiveLocaitons(inputStream) 
-    newSSC
+    newSsc
   }
     
   val ssc = StreamingContext.getOrCreate(checkpointDirectory, createContext, createOnError=false)

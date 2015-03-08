@@ -149,10 +149,12 @@ object MeetupJob1 extends App{
   val memberEventInfo = membersByEventId.transform(
       rdd=>rdd.join(eventHistoryById)      
     )
-    .map{
+    .flatMap{
     case(eventId, ((member, response), event)) => {
-     val eventCluster=eventClusters.predict(PureFunctions.eventToVector(event))
-     (eventCluster,(member, response))
+     eventToVector(event).map{ eventVector=> 
+       val eventCluster=eventClusters.predict(eventVector)
+       (eventCluster,(member, response))
+     }
     }}
     .updateStateByKey(PureFunctions.groupMembers)
     .print 

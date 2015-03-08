@@ -22,7 +22,8 @@ assemblyMergeStrategy in assembly := {
 libraryDependencies ++= Seq(
   "com.typesafe.akka"  %% "akka-actor"       % "2.3.9",
   "com.typesafe.akka"  %% "akka-slf4j"       % "2.3.9",
-  "org.apache.spark" % "spark-streaming_2.11" % "1.2.0",
+  "org.apache.spark" % "spark-streaming_2.11" % "1.2.1",
+  "org.apache.spark" % "spark-mllib_2.11" % "1.2.1",
   "org.json4s" %% "json4s-jackson" % "3.2.10",
   "joda-time" % "joda-time" % "2.3",
   "org.joda" % "joda-convert" % "1.7",
@@ -50,6 +51,9 @@ scalacOptions ++= Seq(
   "-target:jvm-1.7",
   "-encoding", "UTF-8"
 )
+
+javaOptions in run += "-Xmx8G"
+
 
 parallelExecution in Test := false
 

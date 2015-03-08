@@ -15,11 +15,11 @@ object Loggable extends Logging {
       // logging level.
       logInfo("Setting log level to [ERROR] for streaming example." +
         " To override add a custom log4j.properties to the classpath.")
-      Logger.getRootLogger.setLevel(Level.TRACE)
-      Logger.getLogger("org").setLevel(Level.WARN)
-      Logger.getLogger("akka").setLevel(Level.WARN)
-      Logger.getLogger("streaming").setLevel(Level.TRACE)
-      Logger.getLogger("spark").setLevel(Level.TRACE)
+      Logger.getRootLogger.setLevel(Level.WARN)
+      Logger.getLogger("org").setLevel(Level.ERROR)
+      Logger.getLogger("akka").setLevel(Level.ERROR)
+      Logger.getLogger("streaming").setLevel(Level.WARN)
+      Logger.getLogger("spark").setLevel(Level.WARN)
     }
   }
 }

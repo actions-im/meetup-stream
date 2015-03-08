@@ -4,12 +4,12 @@ import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.Seconds
 import org.apache.spark.streaming.dstream.DStream
-import streaming.MeetupReceiver
+import org.apache.spark.streaming.dstream.ReceiverInputDStream
+import receiver.MeetupReceiver
 import org.apache.spark.streaming.Minutes
 import org.apache.spark.streaming.Milliseconds
 import org.apache.spark.streaming.receiver.Receiver
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 import streaming.MeetupStream
 
 
@@ -18,6 +18,10 @@ trait Core {
   val ssc: StreamingContext
   
   val checkpointDirectory: String
+  
+  def createContext() : StreamingContext
+  
+  def createStreams(newSSC: StreamingContext)
   
   def withStreaming[T](f: StreamingContext=> T){
     try{      
@@ -41,33 +45,35 @@ trait BootedCore extends Core {
   
   val checkpointDirectory="./checkpoints/"
   
-  val conf = new SparkConf()
+  val conf = new SparkConf(true)
       .setMaster("local[4]")
       .setAppName("MeetupExperiments")
-      .set("spark.driver.allowMultipleContexts", "true")
-  
-  
+              
   def createContext(): StreamingContext={
     val newSSC=new StreamingContext(conf, Seconds(1))
-    val inputStream = newSSC.receiverStream(new MeetupReceiver)
-    mostActiveLocaitons(inputStream) 
+    createStreams(newSSC)
     newSSC
   }
-  
-  
-  val ssc = StreamingContext.getOrCreate(checkpointDirectory, createContext, createOnError=false)
     
+  val ssc = StreamingContext.getOrCreate(checkpointDirectory, createContext, createOnError=false)
+  
+      
 }
 
-trait MeetupInput{
+trait MeetupInput extends BootedCore{
   
-  this: BootedCore =>     
+  def processStreams(rsvpStream: DStream[String], eventsStream: DStream[String])
+  
     
-  
-  def withInputStream(f: DStream[String]=> Unit){
+  def createStreams(ssc: StreamingContext)={
+    val rsvpStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/rsvps"))
+    val eventsStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/open_events"))
+    processStreams(rsvpStream, eventsStream)
+  }
+    
+  def withInputStreams(f: => Unit){
     withStreaming{ ssc=>
-      //val inputStream = ssc.receiverStream(new MeetupReceiver)
-      //f(ssc.inputStream)      
+      f
     }
   }
     

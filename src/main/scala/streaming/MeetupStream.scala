@@ -39,11 +39,13 @@ object MeetupStream {
   }
   
   def parseRsvp(rsvpJson: String)={
+    Try({
       val json=parse(rsvpJson).camelizeKeys
       val member=(json \ "member").extract[Member]
       val event=(json \ "event").extract[MemberEvent]
       val response=(json \ "response").extract[String]
-      (member, event, response)    
+      (member, event, response)
+    }).toOption
   }
   
   def parsedEventStream(eventStream: DStream[String])=eventStream.map(parseEvent)

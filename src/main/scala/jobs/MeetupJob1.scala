@@ -38,7 +38,7 @@ object MeetupJob1 extends App{
     .toMap
         
   val ssc=new StreamingContext(conf, Seconds(1))
-  val rsvpStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/rsvps"))
+  val rsvpStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/rsvps")).flatMap(parseRsvp)
   //val eventStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/open_events"))
     
   
@@ -70,7 +70,7 @@ object MeetupJob1 extends App{
   def eventToVector(event: Event): Option[Vector]={
    val wordsIterator = event.description.map(breakToWords).getOrElse(Iterator())
    val topWords=popularWords(wordsIterator)
-   if (topWords.size==10) Some(Vectors.sparse(localDictionary.size,topWords)) else None
+   if (topWords.size==10) Some(Vectors.sparse(dictionary.value.size,topWords)) else None
   }
   
   
@@ -110,7 +110,7 @@ object MeetupJob1 extends App{
   
  eventHistoryById.checkpoint() 
   
-  val membersByEventId=parsedRsvpStream(rsvpStream)
+  val membersByEventId=rsvpStream
    .map{case(member, memberEvent, response)=>(memberEvent.eventId, member, response)}
    .filter{case(eventIdOption, member, response) => eventIdOption.isDefined}
    .map{case (eventIdOption, member, response) => (eventIdOption.get, (member, response))}

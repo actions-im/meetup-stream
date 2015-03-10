@@ -1,6 +1,7 @@
 package core
 
 import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.Seconds
 import org.apache.spark.streaming.dstream.DStream
@@ -16,6 +17,8 @@ import streaming.MeetupStream
 trait Core {
   
   val ssc: StreamingContext
+  
+  lazy val sc=ssc.sparkContext
   
   val checkpointDirectory: String
   
@@ -33,6 +36,16 @@ trait Core {
     catch{
       case ex: Throwable => ssc.stop(true, true); ex.printStackTrace() 
     }
+  }
+  
+  def withSpark[T](f: SparkContext => T){
+    try{      
+      f(sc)      
+      sc.stop      
+    }
+    catch{
+      case ex: Throwable => ssc.stop(true, true); ex.printStackTrace() 
+    }    
   }
   
 }
@@ -60,7 +73,7 @@ trait BootedCore extends Core {
       
 }
 
-trait MeetupInput extends BootedCore{
+trait StreamingInput extends BootedCore{
   
   def processStreams(rsvpStream: DStream[String], eventsStream: DStream[String])
   
@@ -78,4 +91,22 @@ trait MeetupInput extends BootedCore{
   }
     
 }
+
+trait StaticInput extends BootedCore{
+  
+  def createStreams(ssc: StreamingContext)={
+    val rsvpStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/rsvps"))
+    val eventsStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/open_events"))
+  }
+    
+  def withInputStreams(f: => Unit){
+    withStreaming{ ssc=>
+      f
+    }
+  }
+    
+}
+
+
+
 

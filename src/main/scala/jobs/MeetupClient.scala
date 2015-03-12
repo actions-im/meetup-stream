@@ -18,7 +18,6 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import core.BootedCore
 import streaming.MeetupStream
-import core.MeetupInput
 import core.Loggable
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.SparkConf
@@ -31,7 +30,7 @@ import org.apache.spark.streaming.scheduler.StreamingListenerReceiverStarted*/
 import org.apache.spark.streaming.dstream.DStream
 
 
-object MeetupJob extends MeetupInput  {//}extends App with MeetupInput {
+//object MeetupJob extends MeetupInput  {//}extends App with MeetupInput {
   
   /*        
   Loggable.setStreamingLogLevels()
@@ -58,7 +57,8 @@ object MeetupJob extends MeetupInput  {//}extends App with MeetupInput {
   ssc.start
   ssc.awaitTermination() */
   import MeetupStream._
-  
+
+  /*  
   override
   def processStreams(rsvpStream: DStream[String], eventsStream: DStream[String])={
     //parsedEventStream(eventsStream).print
@@ -66,7 +66,7 @@ object MeetupJob extends MeetupInput  {//}extends App with MeetupInput {
     //parsedRsvpStream(rsvpStream).print
   }
   
-  /*
+ 
   withInputStreams{
     ssc.addStreamingListener(new StreamingListener{
       
@@ -90,5 +90,5 @@ object MeetupJob extends MeetupInput  {//}extends App with MeetupInput {
     
   } */
   
-}
+//}
 

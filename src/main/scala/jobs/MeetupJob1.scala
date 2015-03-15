@@ -5,24 +5,22 @@ import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.Seconds
 import receiver.MeetupReceiver
 import core.Loggable
-import scala.collection.SortedMap
-import scala.collection.immutable.ListMap
 import org.apache.spark.mllib.clustering.KMeans
 import org.apache.spark.mllib.linalg.Vectors
 import scala.io.Source
-import org.apache.spark.mllib.feature.{HashingTF, IDF}
 import org.apache.spark.SparkContext._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.mllib.linalg.Vector
+import core._
 
 
 object MeetupJob1 extends App{
   
-  import streaming.MeetupStream._
+  import streaming.Parsing._
   import org.apache.spark.streaming.StreamingContext._
   import core.Loggable._
+  import transformations.FeatureExtraction._
 
-  
   val conf = new SparkConf()
       .setMaster("local[4]")
       .setAppName("MeetupExperiments")
@@ -38,58 +36,14 @@ object MeetupJob1 extends App{
     .toMap
         
   val ssc=new StreamingContext(conf, Seconds(1))
-  val rsvpStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/rsvps")).flatMap(parseRsvp)
-  //val eventStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/open_events"))
-    
+  val rsvpStream = ssc.receiverStream(new MeetupReceiver("http://stream.meetup.com/2/rsvps")).flatMap(parseRsvp)    
   
   //static
   val eventsHistory = ssc.sparkContext.textFile("data/events/events.json", 1).flatMap(parseEvent)
-  val rsvpHistory = ssc.sparkContext.textFile("data/rsvps/rsvps.json", 1).map(parseRsvp)
       
   val dictionary= ssc.sparkContext.broadcast(localDictionary)
-  
-  
-  def breakToWords(description: String)={
-    val wordSelector="""[^\<\>\/]\b([a-zA-Z\d]{3,})\b""".r
-    (wordSelector findAllIn description).map{_.trim.toLowerCase()}
-  }
-  
-  
-  def popularWords(words: Iterator[String])={
-    val initialWordCounts=collection.mutable.Map[String, Int]()
-    val wordCounts=words.foldLeft(initialWordCounts){case(wordCounts, word)=> wordCounts+Tuple2(word, wordCounts.getOrElse(word,0)+1)}
-    //println(wordCounts)
-    val wordsIndexes=wordCounts      
-      .flatMap{
-        case(word, count)=>localDictionary.get(word).map{index=>(index,count.toDouble)}
-      }    
-    val topWords=wordsIndexes.toSeq.sortBy(-1*_._2).take(10)    
-    topWords
-  }
-  
-  def eventToVector(event: Event): Option[Vector]={
-   val wordsIterator = event.description.map(breakToWords).getOrElse(Iterator())
-   val topWords=popularWords(wordsIterator)
-   if (topWords.size==10) Some(Vectors.sparse(dictionary.value.size,topWords)) else None
-  }
-  
-  
-  /*  
-  val eventDescriptions=eventsHistory
-    .flatMap{event=>event.description}
-    .map(text=>breakToWords(text).toSeq)
         
-  val eventVectors=new HashingTF().transform(eventDescriptions)
-  * */
-
-  
-  //eventVectors.cache()
-  
-  //val idf = new IDF().fit(eventVectors)
-  //val eventsTfIdf: RDD[Vector] = idf.transform(eventVectors)
-
-      
-  val eventVectors=eventsHistory.flatMap{event=>eventToVector(event)}
+  val eventVectors=eventsHistory.flatMap{event=>eventToVector(dictionary.value,event.description.getOrElse(""))}
   
   eventVectors.cache()
   
@@ -104,26 +58,16 @@ object MeetupJob1 extends App{
   
   ssc.checkpoint("checkpoints")  
       
- val eventHistoryById=eventsHistory.flatMap{event=>event.id.map(id=>(id, event))}
+  val eventHistoryById=eventsHistory
+    .map{event=>(event.id, event.description.getOrElse(""))}
+    .reduceByKey{(first: String, second: String)=>first}
   
- println(s"Joining with ${eventHistoryById.count}")
+  println(s"Joining with ${eventHistoryById.count}")
   
- eventHistoryById.checkpoint() 
+  eventHistoryById.checkpoint()
   
-  val membersByEventId=rsvpStream
-   .map{case(member, memberEvent, response)=>(memberEvent.eventId, member, response)}
-   .filter{case(eventIdOption, member, response) => eventIdOption.isDefined}
-   .map{case (eventIdOption, member, response) => (eventIdOption.get, (member, response))}
-      
-  
-  def countNewMembers(memberResponses: Seq[(Member, String)], initList: Option[Set[Member]])={
-    val initialMemberList=initList.getOrElse(Set())
-    val newMemberList=(memberResponses :\ initialMemberList) {case((member, response), memberList) =>
-      if (response == "yes") memberList + member else memberList - member  
-    }
-    if (newMemberList.size>0) Some(newMemberList) else None
-  }
-  
+  eventHistoryById.cache()
+
   object PureFunctions{
     
 
@@ -134,30 +78,38 @@ object MeetupJob1 extends App{
       }
       if (newMemberList.size>0) Some(newMemberList) else None
     }  
-    
-    def eventToVector(event: Event): Vector={
-     val document = event.description.map(breakToWords).getOrElse(Iterator()).toSeq
-     new HashingTF().transform(document)
-    }
-    
-    
+       
   }
  
-  val eventMembers=membersByEventId
-   .updateStateByKey(countNewMembers)
+   val membersByEventId=rsvpStream
+     .flatMap{
+       case(member, memberEvent, response) => 
+         memberEvent.eventId.map{id=>(id,(member, response))}
+     }
+  
    
-  val memberEventInfo = membersByEventId.transform(
+  val rsvpEventInfo=membersByEventId.transform(
       rdd=>rdd.join(eventHistoryById)      
-    )
+    )  
+         
+  val memberEventInfo = rsvpEventInfo
     .flatMap{
-    case(eventId, ((member, response), event)) => {
-     eventToVector(event).map{ eventVector=> 
+    case(eventId, ((member, response), description)) => {
+     eventToVector(dictionary.value,description).map{ eventVector=> 
        val eventCluster=eventClusters.predict(eventVector)
        (eventCluster,(member, response))
      }
     }}
-    .updateStateByKey(PureFunctions.groupMembers)
-    .print 
+  
+  val memberGroups = memberEventInfo.updateStateByKey(PureFunctions.groupMembers)
+  
+  //memberGroups.print(10)
+  
+  val recomendations=memberEventInfo
+    .join(memberGroups)
+    .map{case(cluster, ((member, memberResponse), members)) => (member.memberName, members-member)}
+  
+  recomendations.print(10)
   
   ssc.start
   ssc.awaitTermination()  

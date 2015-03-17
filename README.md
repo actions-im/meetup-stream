@@ -1,4 +1,4 @@
-Learn about the project here: https://github.com/actions/meetup-stream/tree/master/slides
+Learn about the project here: www.slideshare.net/SergeyZelvenskiy/spark-streaming-45954549
 
 Run the project: sbt run
 
